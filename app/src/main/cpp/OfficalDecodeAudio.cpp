@@ -1,5 +1,5 @@
 #include "OfficalDecodeAudio.h"
-
+#include <android/log.h>
 extern "C"
 {
 #include "libavcodec/avcodec.h"
@@ -8,6 +8,10 @@ extern "C"
 #include "libavformat/avformat.h"
 #include "libswresample/swresample.h"
 }
+
+#define MODULE_NAME  "OfficalDecodeAudio"
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, MODULE_NAME, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, MODULE_NAME, __VA_ARGS__)
 
 #define MAX_FRAME_SIZE 4096
 
@@ -25,8 +29,8 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
     out = fopen(outputFileName, "wb");
     if (!out)
     {
-        printf("can not create file %s \n", outputFileName);
-        exit(1);
+        LOGE("can not create file %s \n", outputFileName);
+        return;
     }
 
     av_register_all();
@@ -37,21 +41,21 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
     formatCtx = avformat_alloc_context();
     if (!formatCtx)
     {
-        printf("Can't allocate context\n");
-        exit(1);
+        LOGE("Can't allocate context\n");
+        return;
     }
 
     err = avformat_open_input(&formatCtx, inputFileName, NULL, NULL);
     if (err < 0)
     {
-        printf("Can't open input file\n");
-        exit(1);
+        LOGE("Can't open input file\n");
+        return;
     }
 
     if (avformat_find_stream_info(formatCtx, NULL) < 0)
     {
-        printf("Error when find stream info\n");
-        exit(1);
+        LOGE("Error when find stream info\n");
+        return;
     }
 
     av_dump_format(formatCtx, 0, inputFileName, 0);
@@ -68,9 +72,9 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
         }
         if (st->disposition & AV_DISPOSITION_ATTACHED_PIC)
         {
-            printf("pic index: %d\n", i);
+            LOGE("pic index: %d\n", i);
             AVPacket p = st->attached_pic;
-            FILE *picFile = fopen("./picture.jpeg", "wb");
+            FILE *picFile = fopen("/sdcard/album.jpeg", "wb");
             fwrite(p.data, sizeof(uint8_t), p.size, picFile);
             fflush(picFile);
             fclose(picFile);
@@ -80,11 +84,11 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
 
     if (audioIndex == -1)
     {
-        printf("Can't find audio stream\n");
-        exit(1);
+        LOGE("Can't find audio stream\n");
+        return;
     }
 
-    printf("audio index is %d\n", audioIndex);
+    LOGE("audio index is %d\n", audioIndex);
 
     AVStream *audioStream = formatCtx->streams[audioIndex];
 
@@ -104,26 +108,26 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
     codec = avcodec_find_decoder(audioStream->codecpar->codec_id);
     if (codec == NULL)
     {
-        printf("can not find codec");
-        exit(1);
+        LOGE("can not find codec");
+        return;
     }
 
     codecCtx = avcodec_alloc_context3(codec);
     if (!codecCtx)
     {
-        printf("Error when alloc CodecContext\n");
-        exit(1);
+        LOGE("Error when alloc CodecContext\n");
+        return;
     }
 
     if (avcodec_parameters_to_context(codecCtx, audioStream->codecpar) < 0)
     {
-        printf("Error when copy params to codec context");
-        exit(1);
+        LOGE("Error when copy params to codec context");
+        return;
     }
     if (avcodec_open2(codecCtx, codec, NULL) < 0)
     {
-        fprintf(stderr, "Error when open codec\n");
-        exit(1);
+        LOGE("Error when open codec\n");
+        return;
     }
 
     in_sample_rate = codecCtx->sample_rate;
@@ -131,16 +135,16 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
     in_channel_layout = codecCtx->channel_layout;
     in_sample_fmt = codecCtx->sample_fmt;
 
-    printf("Convert data format:\n");
-    printf("    in_sample_rate: %d\n", in_sample_rate);
-    printf("    in_sample_fmt: %d\n", in_sample_fmt);
-    printf("    in_channels: %d\n", in_channels);
-    printf("    in_channel_layout: %ld\n", in_channel_layout);
+    LOGE("Convert data format:\n");
+    LOGE("    in_sample_rate: %d\n", in_sample_rate);
+    LOGE("    in_sample_fmt: %d\n", in_sample_fmt);
+    LOGE("    in_channels: %d\n", in_channels);
+    LOGE("    in_channel_layout: %ld\n", in_channel_layout);
 
-    printf("    out_sample_rate: %d\n", out_sample_rate);
-    printf("    out_sample_fmt: %d\n", out_sample_fmt);
-    printf("    out_channels: %d\n", out_channels);
-    printf("    out_channel_layout: %ld\n", out_channel_layout);
+    LOGE("    out_sample_rate: %d\n", out_sample_rate);
+    LOGE("    out_sample_fmt: %d\n", out_sample_fmt);
+    LOGE("    out_channels: %d\n", out_channels);
+    LOGE("    out_channel_layout: %ld\n", out_channel_layout);
 
     SwrContext *convert_context;
     convert_context = swr_alloc();
@@ -160,7 +164,7 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
 
     // int32_t out_buffer_size = av_samples_get_buffer_size(NULL, out_channels, MAX_FRAME_SIZE, out_sample_fmt, 1);
     int32_t out_buffer_size = MAX_FRAME_SIZE * 2 * sizeof(int16_t);
-    printf("out_buffer_size = %d\n", out_buffer_size);
+    LOGE("out_buffer_size = %d\n", out_buffer_size);
     uint8_t *out_buffer = (uint8_t *)malloc(out_buffer_size);
 
     bool readFinished = false;
@@ -174,34 +178,34 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
             {
                 readFinished = true;
                 packet->size = 0;
-                printf("av_read_frame returns %d\n", err1);
+                LOGE("av_read_frame returns %d\n", err1);
             }
         }
 
-        // printf("presention time = %ld\n", pkt_pts);
+        // LOGE("presention time = %ld\n", pkt_pts);
         int err2 = avcodec_send_packet(codecCtx, packet);
         if (err2 == AVERROR(EAGAIN))
         {
             //Need to call avcodec_receive_frame() first, and then resend
             //this packet.
             decode_state = NEED_READ_FIRST;
-            printf("call send_packet() returns AVERROR(EAGAIN)\n");
+            LOGE("call send_packet() returns AVERROR(EAGAIN)\n");
         }
         else if (err2 == AVERROR_EOF)
         {
-            printf("call send_packet() returns AVERROR_EOF\n");
+            LOGE("call send_packet() returns AVERROR_EOF\n");
         }
         else if (err2 == AVERROR(EINVAL))
         {
-            printf("call send_packet() returns AVERROR(EINVAL)\n");
+            LOGE("call send_packet() returns AVERROR(EINVAL)\n");
         }
         else if (err2 < 0)
         {
-            printf("call send_packet() returns %d\n", err2);
+            LOGE("call send_packet() returns %d\n", err2);
         }
         else
         {
-            printf("call send_packet() normal, returns %d\n", err2);
+            LOGE("call send_packet() normal, returns %d\n", err2);
             decode_state = NORMAL;
         }
 
@@ -212,27 +216,27 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
             {
                 //Can not read until send a new packet
 
-                printf("call avcodec_receive_frame() returns AVERROR(EAGAIN)\n");
+                LOGE("call avcodec_receive_frame() returns AVERROR(EAGAIN)\n");
                 break;
             }
             else if (err3 == AVERROR_EOF)
             {
-                printf("call avcodec_receive_frame() returns AVERROR_EOF\n");
+                LOGE("call avcodec_receive_frame() returns AVERROR_EOF\n");
                 break;
             }
             else if (err3 == AVERROR(EINVAL))
             {
-                printf("call avcodec_receive_frame() returns AVERROR(EINVAL)\n");
+                LOGE("call avcodec_receive_frame() returns AVERROR(EINVAL)\n");
                 break;
             }
             else if (err < 0)
             {
-                printf("call avcodec_receive_frame() returns %d\n", err3);
+                LOGE("call avcodec_receive_frame() returns %d\n", err3);
                 break;
             }
             else
             {
-                printf("success receive a frame\n");
+                LOGE("success receive a frame\n");
                 int frameCount = swr_convert(convert_context, &out_buffer, MAX_FRAME_SIZE, (const uint8_t **)frame->data, frame->nb_samples);
                 fwrite(out_buffer, frameCount, out_channels * 2 * sizeof(uint8_t), out);
                 while (1)

@@ -6,7 +6,13 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import androidx.core.app.ActivityCompat
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.zu.ffmpegaudioplayer.data.AudioFile
+import com.zu.ffmpegaudioplayer.data.loadAudioFromMediaStore
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
@@ -19,7 +25,11 @@ class MainActivity : AppCompatActivity() {
             adapter.data = value
         }
 
+    private val outputPath: String = "sdcard/test.pcm"
+
     private var adapter: SongListAdapter = SongListAdapter()
+
+    private var selectedFile: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,10 +37,41 @@ class MainActivity : AppCompatActivity() {
 
         // Example of a call to a native method
         btn_print_format.setOnClickListener { nPrintFormatInfo() }
+        btn_start_decode.setOnClickListener { decode() }
+        checkPermission()
+
+        rv_list.adapter = adapter
+        rv_list.layoutManager = LinearLayoutManager(this, RecyclerView.VERTICAL, false)
+
+
+        adapter.itemClickListener = {position: Int ->
+            val song = songList!![position]
+            tv_selected.text = song.path
+            selectedFile = song.path
+        }
+
+        Observable.fromCallable {
+            loadAudioFromMediaStore(this)
+        }
+            .subscribeOn(Schedulers.io())
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                songList = it
+            }
     }
 
 
-    fun listPermissions(): ArrayList<String>
+    private fun decode()
+    {
+        if(selectedFile == null)
+        {
+            Log.e(TAG, "select file is null")
+            return
+        }
+        nDecode(selectedFile!!, outputPath);
+    }
+
+    private fun listPermissions(): ArrayList<String>
     {
         var result = ArrayList<String>()
         result.add(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -38,7 +79,7 @@ class MainActivity : AppCompatActivity() {
         return result
     }
 
-    fun checkPermission()
+    private fun checkPermission()
     {
         val permissions = listPermissions()
         var allGet = true

@@ -272,6 +272,10 @@ void OfficalDecodeAudio::decodeAudio(const char *inputFileName, const char *outp
     av_frame_free(&frame);
     av_free_packet(packet);
     swr_free(&convert_context);
+
     avcodec_close(codecCtx);
+    avcodec_free_context(&codecCtx);
+
     avformat_close_input(&formatCtx);
+    avformat_free_context(formatCtx);
 }
